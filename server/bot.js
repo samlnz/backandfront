@@ -18,6 +18,7 @@ console.log(`[System] Initializing Star Bingo Engine...`);
 console.log(`[System] Port: ${PORT}`);
 console.log(`[System] App URL: ${APP_URL}`);
 
+// Global error handlers to prevent 502s from minor crashes
 process.on('uncaughtException', (err) => {
   console.error('[Critical] Uncaught Exception:', err);
 });
@@ -187,7 +188,7 @@ function initNewRound() {
   gameState.sequence = nums;
 }
 
-// Simplified Engine Tick
+// Engine Tick
 setInterval(async () => {
   const now = Date.now();
   if (gameState.phase === PHASES.SELECTION && now >= gameState.nextPhaseTime) {
@@ -238,16 +239,21 @@ app.post('/api/game/join', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Serve static files
+// Serve static files from the dist directory
 app.use(express.static(distPath));
 
-// Final catch-all for SPA
-app.get('*', (req, res) => {
+// Final catch-all for SPA: 
+// In Express 5, using a pathless use() is the safest way to handle a wildcard fallback
+app.use((req, res, next) => {
+  // Only serve index.html for GET requests that aren't for files
+  if (req.method !== 'GET') return next();
+  
   const indexFile = path.join(distPath, 'index.html');
   res.sendFile(indexFile, (err) => {
     if (err) {
+      // If index.html doesn't exist, it means the build likely failed
       console.error(`[Error] Failed to send index.html: ${err.message}`);
-      res.status(404).send("Application not ready. Please wait for the build to finish.");
+      res.status(404).send("Application not ready. Please ensure the frontend build finished successfully.");
     }
   });
 });
